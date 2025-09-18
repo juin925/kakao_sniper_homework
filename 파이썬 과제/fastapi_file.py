@@ -1,12 +1,13 @@
 import os
+import zipfile
 from typing import List
-from fastapi import FastAPI, HTTPException, File, UploadFile
+from fastapi import FastAPI, HTTPException, File, UploadFile, Query
 from fastapi.responses import FileResponse, StreamingResponse
 import uvicorn
 
 app = FastAPI()
 
-@app.post('/upload-file/')
+@app.post('/upload-file/') # 파일 업로드
 async def upload_file(file: List[UploadFile] = File(...)):
     results = []
 
@@ -40,6 +41,43 @@ async def upload_file(file: List[UploadFile] = File(...)):
         })
     
     return results
+
+@app.get('/search-file/') # 확장자 비교하여 파일 검색
+async def search_file(ext:str=""):
+    folder = "uploads"
+    file_list = []
+    for file in os.listdir(folder):
+        if file.endswith(ext):
+            file_list.append(file)
+    
+    return file_list
+
+@app.get("/download-file/") # 파일 다운로드
+async def download_file(file_name: List[str] = Query(...)):
+    folder = "uploads"
+    zip_path = "downloads.zip"
+
+    with zipfile.ZipFile(zip_path, "w") as zipf: # zip파일로 다운
+        for file in file_name:
+            file_path = os.path.join(folder, file)
+            if os.path.exists(file_path):
+                zipf.write(file_path, arcname=file)
+            else:
+                raise HTTPException(status_code=404, detail=f"{file} 파일이 존재하지 않습니다.")
+
+    return FileResponse(zip_path, media_type="application/zip", filename="downloads.zip")
+
+@app.delete("/delete-file/") # 파일 삭제
+async def delete_file(file_name:List[str]=Query(...)):
+    folder = "uploads"
+    for file in file_name:
+        file_path = os.path.join(folder, file)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        else:
+            raise HTTPException(status_code=404, detail="삭제할 파일이 존재하지 않습니다")
+        
+    return {"message" : "성공적으로 삭제되었습니다."}
 
 if __name__ == '__main__':
     uvicorn.run(app, host='0.0.0.0', port=8000)
